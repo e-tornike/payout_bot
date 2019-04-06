@@ -11,7 +11,6 @@ DATA_DIR = os.path.join(os.getcwd(), os.pardir, "data")
 def get_ticket(user_dir):
 
     ticket_path = os.path.join(user_dir, "ticket_ocr.json")
-
     with open(ticket_path, 'r') as f:
         ticket_json = json.load(f)
     # ticket_json = json.load(open(ticket_path, "r"))
@@ -35,26 +34,16 @@ def delete_user_dir(path):
         os.removedirs(path)
 
 
-def get_ocr(user_dir):
-
-    # TODO
-
-    return
-
-
-def db_fill_form(user_dir):
+def db_fill_form(user_dir, ocr_data):
     data_dir = os.path.join(os.getcwd(), os.pardir, "data")
 
-    # TODO
-    get_ocr(user_dir)
-
     # Read ticket info
-    ticket_json = get_ticket(user_dir)
-    recognition_result = ticket_json["recognitionResult"]
-    lines = recognition_result["lines"]
-    BB_KEY = "boundingBox"
-    all_texts = [line["text"] for line in lines]
-    extracted_data = extract_data(all_texts, re_list)
+    # ticket_json = get_ticket(user_dir)
+    # recognition_result = ticket_json["recognitionResult"]
+    # lines = recognition_result["lines"]
+    # BB_KEY = "boundingBox"
+    # all_texts = [line["text"] for line in lines]
+    # extracted_data = extract_data(all_texts, re_list)
 
     # Define PDF files
     form_de = os.path.join(data_dir, "form_de.pdf")
@@ -66,7 +55,7 @@ def db_fill_form(user_dir):
     mapping = get_json_data(os.path.join(data_dir, "mapping.json"))
 
     # Map ticket values to form keys
-    data = json_to_fpdf_v2(mapping, extracted_data)
+    data = json_to_fpdf_v2(mapping, ocr_data)
 
     try:
         # Fill form and generate PDF
@@ -75,6 +64,7 @@ def db_fill_form(user_dir):
 
         # TODO
         # return output_pdf
+        return True
     except:
         return False
 
@@ -93,6 +83,6 @@ def send_pdf(user_dir):
         return False
 
 
-if __name__ == '__main__':
-    user_dir = os.path.join(os.getcwd(), os.pardir, "data", "users", "542253555")
-    db_fill_form(user_dir)
+# if __name__ == '__main__':
+#     user_dir = os.path.join(os.getcwd(), os.pardir, "data", "users", "542253555")
+#     db_fill_form(user_dir)
