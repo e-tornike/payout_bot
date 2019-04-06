@@ -25,7 +25,11 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, Rege
                           ConversationHandler)
 from enum import Enum
 
+from main import db_fill_form, create_user_dir, delete_user_dir
+from utils import make_dir
+
 import yaml
+import os
 
 config = yaml.load(open("config.yaml"))
 TOKEN = config["TOKEN"]
@@ -37,7 +41,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
-# GENDER, PHOTO, LOCATION, BIO = range(4)
+
+class Global:
+    USER_DIR = None
+
 
 class States(Enum):
     start = "start"
@@ -54,10 +61,9 @@ class States(Enum):
     send_pdf = "send_pdf"
 
 
-
-
 def start(update, context):
     # reply_keyboard = [['delayed', 'cancelled']]
+
     return States.ask_train_state
 
 
@@ -68,6 +74,10 @@ def ask_train_state(update, context):
         'Send cancel to stop talking to me.\n\n'
         'Did your train get delayed or was completely canceled?',
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+
+    # Create user directory
+    Global.USER_DIR = create_user_dir(update.message.chat_id)
+
     return States.process_train_state
 
 
@@ -95,9 +105,15 @@ def train_state_delayed(update, context):
         pass
 
 
-def send_pdf(update, context):
-    print("TODO: send pdf")
-    pass
+def send_pdf(update, context, data):
+
+    res = db_fill_form(Global.USER_DIR, data)
+
+    if res:
+        update.message.reply_text('Super! Deine Daten wurde übermittelt.')
+    else:
+        update.message.reply_text('Entschuldigung, es ist leider ein Fehler aufgetreten mit der Datei.')
+
 
 def cancel(update, context):
     user = update.message.from_user
@@ -105,30 +121,38 @@ def cancel(update, context):
     update.message.reply_text('Bye! I hope we can talk again some day.',
                               reply_markup=ReplyKeyboardRemove())
 
+    delete_user_dir(update.message.chat_id)
+
     return ConversationHandler.END
+
 
 def request_delayed_train_ticket_photo(update, context):
     user = update.message.from_user
     photo_file = update.message.photo[-1].get_file()
-    photo_file.download('user_photo.jpg')
-    logger.info("Photo of %s: %s", user.first_name, 'user_photo.jpg')
+    ticket_path = os.path.join(Global.USER_DIR, "ticket.jpg")
+    photo_file.download(ticket_path)
+    logger.info("Photo of %s: %s", user.first_name, ticket_path)
 
     from src.src import extract_data_from_image, re_list
-    form_data = extract_data_from_image("user_photo.jpg", re_list, AZURE_KEY)
+    # Get ocr data in JSON
+    form_data = extract_data_from_image(ticket_path, re_list, AZURE_KEY)
     import json
-    with open("user_data.json", "w") as f:
+    ticket_ocr_path = os.path.join(Global.USER_DIR, "ticket_ocr.json")
+    with open(ticket_ocr_path, "w") as f:
         json.dump(form_data, f)
 
     update.message.reply_text('Danke! Ich beantrage deine Erstattung.')
 
-    send_pdf(update, context)
+    send_pdf(update, context, form_data)
     return States.ask_train_state
+
 
 def request_cancelled_train_ticket_photo(update, context):
     user = update.message.from_user
     photo_file = update.message.photo[-1].get_file()
-    photo_file.download('user_photo.jpg')
-    logger.info("Photo of %s: %s", user.first_name, 'user_photo.jpg')
+    ticket_path = os.path.join(Global.USER_DIR, "ticket.jpg")
+    photo_file.download(ticket_path)
+    logger.info("Photo of %s: %s", user.first_name, ticket_path)
 
     reply_keyboard = [['took different train', 'I cancelled my trip']]
     update.message.reply_text(
@@ -136,30 +160,50 @@ def request_cancelled_train_ticket_photo(update, context):
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
     return States.process_replacement_train
 
+
 def process_replacement_train(update, context):
     if update.message.text == "took different train":
         txt = "Please send me a screenshot of your mobile ticket."
         update.message.reply_text("{}".format(txt), reply_markup=ReplyKeyboardRemove())
         return States.request_delayed_train_ticket_photo
     elif update.message.text == "I cancelled my trip":
-        txt = "Ok. Ich sende dir das das aufgefüllte Formular."
+        txt = "Ok. Ich sende dir das aufgefüllte Formular."
         update.message.reply_text("{}".format(txt), reply_markup=ReplyKeyboardRemove())
 
-        send_pdf(update, context)
+        form_data = "" # TODO
+        send_pdf(update, context, form_data)
         return States.ask_train_state
     else:
         pass
 
+
 def request_replacement_train_ticket_photo(update, context):
     user = update.message.from_user
     photo_file = update.message.photo[-1].get_file()
-    photo_file.download('user_photo.jpg')
-    logger.info("Photo of %s: %s", user.first_name, 'user_photo.jpg')
+    ticket_path = os.path.join(Global.USER_DIR, "ticket.jpg")
+    photo_file.download(ticket_path)
+    logger.info("Photo of %s: %s", user.first_name, ticket_path)
     update.message.reply_text('Danke! Ich beantrage deine Erstattung.')
 
-    send_pdf(update, context)
+    form_data = ""  # TODO
+    send_pdf(update, context, form_data)
 
     return States.ask_train_state
+
+
+def clean_data_dir():
+    data_dir = os.path.join(os.getcwd(), os.pardir, "data")
+    users_dir = os.path.join(data_dir, "users")
+
+    if os.path.isdir(users_dir):
+        user_dirs = [os.path.join(users_dir, d) for d in os.listdir(users_dir)]
+
+        for d in user_dirs:
+            delete_user_dir(d)
+
+    make_dir(data_dir)
+    make_dir(users_dir)
+
 
 def main():
     # Create the Updater and pass it your bot's token.
@@ -172,7 +216,7 @@ def main():
 
     # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
     conv_handler = ConversationHandler(
-        entry_points=[RegexHandler("^(hi|hallo)", ask_train_state)],
+        entry_points=[RegexHandler("^([Hh]i|[Hh]allo)|start", ask_train_state)],
         states={
             States.ask_train_state : [MessageHandler(Filters.text, ask_train_state)],
             States.process_train_state: [RegexHandler('^(delayed|cancelled)$', process_train_state)],
@@ -189,4 +233,5 @@ def main():
 
 
 if __name__ == '__main__':
+    # clean_data_dir()
     main()
