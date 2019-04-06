@@ -1,0 +1,19 @@
+import json\
+
+
+def get_json_data(json_path):
+    with open(json_path) as f:
+        data = json.load(f)
+    return data
+
+
+def json_to_fpdf(mapping, extracted_data):
+
+    form_data = {}
+
+    for k, v in extracted_data.items():
+        form_data[mapping[k]] = v
+
+    return form_data
+
+
