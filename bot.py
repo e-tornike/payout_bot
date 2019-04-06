@@ -6,7 +6,7 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, Rege
                           ConversationHandler)
 
 from main import db_fill_form, create_user_dir, delete_user_dir
-from utils import load_telegram_token
+from utils import load_telegram_token, make_dir
 from enum import Enum
 
 
@@ -37,10 +37,7 @@ def start(update, context):
         'Hallo! Ich bin dein Payout-Bot. Bitte wähl eine Sprache.',
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
 
-    print(Global.USER_DIR)
-    print(update.message.chat_id)
     Global.USER_DIR = create_user_dir(update.message.chat_id)
-    print(Global.USER_DIR)
 
     return States.LANG
 
@@ -81,7 +78,6 @@ def language(update, context):
 def photo(update, context):
     user = update.message.from_user
     photo_file = update.message.photo[-1].get_file()
-    print(Global.USER_DIR)
     ticket_path = os.path.join(Global.USER_DIR, "ticket.jpg")
     photo_file.download(ticket_path)
     logger.info("Photo of %s: %s", user.first_name, '{}'.format(str(ticket_path)))
@@ -89,7 +85,6 @@ def photo(update, context):
 
 
 def unknown(update, context):
-    print(update.message.chat_id)
     context.bot.send_message(chat_id=update.message.chat_id, text="Sorry, I didn't understand that command.")
 
 
@@ -109,9 +104,21 @@ def _start(update, context):
     return States.PHOTO
 
 
-def main():
+def clean_data_dir():
+    data_dir = os.path.join(os.getcwd(), os.pardir, "data")
+    users_dir = os.path.join(data_dir, "users")
 
-    # bot = telegram.Bot(token=TOKEN)
+    if os.path.isdir(users_dir):
+        user_dirs = [os.path.join(users_dir, d) for d in os.listdir(users_dir)]
+
+        for d in user_dirs:
+            delete_user_dir(d)
+
+    make_dir(data_dir)
+    make_dir(users_dir)
+
+
+def main():
 
     updater = Updater(token=TOKEN, use_context=True)
 
@@ -139,4 +146,5 @@ def main():
 
 
 if __name__ == '__main__':
+    # clean_data_dir()
     main()
