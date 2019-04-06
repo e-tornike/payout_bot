@@ -25,6 +25,12 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, Rege
                           ConversationHandler)
 from enum import Enum
 
+import yaml
+
+config = yaml.load(open("config.yaml"))
+TOKEN = config["TOKEN"]
+AZURE_KEY = config["AZURE_KEY"]
+
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
@@ -106,6 +112,13 @@ def request_delayed_train_ticket_photo(update, context):
     photo_file = update.message.photo[-1].get_file()
     photo_file.download('user_photo.jpg')
     logger.info("Photo of %s: %s", user.first_name, 'user_photo.jpg')
+
+    from src.src import extract_data_from_image, re_list
+    form_data = extract_data_from_image("user_photo.jpg", re_list, AZURE_KEY)
+    import json
+    with open("user_data.json", "w") as f:
+        json.dump(form_data, f)
+
     update.message.reply_text('Danke! Ich beantrage deine Erstattung.')
 
     send_pdf(update, context)
@@ -152,9 +165,6 @@ def main():
     # Create the Updater and pass it your bot's token.
     # Make sure to set use_context=True to use the new context based callbacks
     # Post version 12 this will no longer be necessary
-    import yaml
-    config = yaml.load(open("config.yaml"))
-    TOKEN = config["TOKEN"]
     updater = Updater(TOKEN, use_context=True)
 
     # Get the dispatcher to register handlers

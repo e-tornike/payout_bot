@@ -98,15 +98,13 @@ def empty_form():
 
 
 re_list = [
-    ".*(Hinfahrt)\s*:\s*(?P<startBahnhof>\w+) - (?P<zielBahnhof>\w+),\s* mit \s*(?P<train_type>\w+)",
+    "(Hinfahrt)\s*:\s*(?P<startBahnhof>\w+) - (?P<zielBahnhof>\w+),\s* mit \s*(?P<train_type>\w+)",
     "(Herr|Frau) \w+ \w+",
-    "(Uber).*(ICE)(?P<train_number>\d+)",
-    "(Gesamtpreis).*:.*(?P<price>\d+,\d+).*(EUR)"
+    "(Über).*(ICE)(?P<train_number>\d+)",
+    "(Gesamtpreis)\s*:\s*(?P<price>\d+,\d+)\s*(EUR)"
 ]        
 
 def extract_data(list_of_texts, re_list):
-    import warnings
-    warnings.warn("use extract_data_from_image instead", DeprecationWarning)
     match_dict = {}
     
     p_list = list(map(re.compile, re_list))
