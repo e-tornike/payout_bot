@@ -65,8 +65,8 @@ import re
 #         return True
 
 from collections import defaultdict
-
-
+import requests
+from PIL import Image
 
 def empty_form():
     d = defaultdict(list)
@@ -100,10 +100,13 @@ def empty_form():
 re_list = [
     ".*(Hinfahrt)\s*:\s*(?P<startBahnhof>\w+) - (?P<zielBahnhof>\w+),\s* mit \s*(?P<train_type>\w+)",
     "(Herr|Frau) \w+ \w+",
-    "(Uber).*(ICE)(?P<train_number>\d+)"
+    "(Uber).*(ICE)(?P<train_number>\d+)",
+    "(Gesamtpreis).*:.*(?P<price>\d+,\d+).*(EUR)"
 ]        
-        
+
 def extract_data(list_of_texts, re_list):
+    import warnings
+    warnings.warn("use extract_data_from_image instead", DeprecationWarning)
     match_dict = {}
     
     p_list = list(map(re.compile, re_list))
@@ -113,6 +116,44 @@ def extract_data(list_of_texts, re_list):
             if matches:
                 match_dict.update(matches.groupdict())
     return match_dict
-        
-if __name__ == "__main__":
-    AngabenZurReise().check()
+
+
+def extract_data_from_image(image_path, re_list, subscription_key):
+    ''' extracts form data from ticket screenshot'''
+    try:
+        analysis = request_ocr(image_path, subscription_key)
+    except FileNotFoundError:
+        raise FileNotFoundError
+    except TimeoutError:
+        raise TimeoutError
+    text = get_text(analysis)
+    form_data = extract_data(text, re_list)
+    return form_data
+
+
+
+def get_text(analysis):
+    '''
+    analysis = request_ocr("tickets.jpeg", s_key")
+    :param analysis:
+    :return:
+    '''
+    lines = analysis["regions"][1]["lines"]
+    words = [line["words"] for line in lines]
+    text = [' '.join(list(map(lambda x: x["text"], w))) for w in words]
+    return text
+
+
+def request_ocr(image_path, subscription_key):
+    vision_base_url = "https://westeurope.api.cognitive.microsoft.com/vision/v2.0/"
+    ocr_url = vision_base_url + "ocr"
+    headers = {'Ocp-Apim-Subscription-Key': subscription_key,
+               'Content-Type': 'application/octet-stream'}
+    params = {'language': 'unk', 'detectOrientation': 'true'}
+    # data    = {'url': image_url}
+    data = open(image_path, "rb").read()
+    response = requests.post(ocr_url, headers=headers, params=params, data=data)
+    response.raise_for_status()
+    analysis = response.json()
+
+    return analysis
