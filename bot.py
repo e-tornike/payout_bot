@@ -1,27 +1,33 @@
-# import telegram
-# from telegram.ext import Updater
-# from telegram.ext import CommandHandler
-# from telegram.ext import MessageHandler, Filters
-# from telegram.ext import InlineQueryHandler
-# from telegram import InlineQueryResultArticle, InputTextMessageContent
-
+import os
 import logging
 import telegram
 from telegram import (ReplyKeyboardMarkup, ReplyKeyboardRemove)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
                           ConversationHandler)
 
-from main import db_fill_form, create_user_dir
+from main import db_fill_form, create_user_dir, delete_user_dir
+from utils import load_telegram_token
+from enum import Enum
 
 
-TOKEN = '898252052:AAFJiIhd9WQ9M7VLfSwAaqVg4KqkpLiXH5Q'
+TOKEN = load_telegram_token()
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
                     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
-LANG, PHOTO, ALT = range(3)
+
+class Global:
+    USER_DIR = None
+
+
+class States(Enum):
+    LANG = 1
+    LANG_DEC = 2
+    LANG_DEC_EN = 3
+    PHOTO = 4
+    PHOTO_DEC = 5
 
 
 def start(update, context):
@@ -31,22 +37,38 @@ def start(update, context):
         'Hallo! Ich bin dein Payout-Bot. Bitte wähl eine Sprache.',
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
 
-    # create_user_dir(update.message.chat_id)
+    print(Global.USER_DIR)
+    print(update.message.chat_id)
+    Global.USER_DIR = create_user_dir(update.message.chat_id)
+    print(Global.USER_DIR)
 
-    return LANG
+    return States.LANG
+
+
+def request_photo(update, context):
+    if update.message.text == "DE":
+        update.message.reply_text("Please update a photo.")
+        return States.PHOTO
+    elif update.message.text == "EN":
+        print("English")
+        return States.PHOTO
+    else:
+        update.message.reply_text("Sorry, I don't support that language.")
 
 
 def language(update, context):
+
+    # reply_keyboard = [['DE', 'EN']]
+    #
+    # update.message.reply_text(
+    #     'Hallo! Ich bin dein Payout-Bot. Bitte wähl eine Sprache.',
+    #     reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
     # print("This is your context", context)
 
     user = update.message.from_user
     update.message.reply_text("{}".format(update.message.text), reply_markup=ReplyKeyboardRemove())
-    if update.message.text == "DE":
-        print("Going back to start")
-        return ALT
-    else:
-        print("Going to photo")
-        return PHOTO
+
+    return States.PHOTO
     # logger.info("Language of %s: %s", user.first_name, update.message.text)
     # update.message.reply_text('Super! Bitte lad ein Screenshot von deinem Ticket hoch'
     #                           'damit ich deine Erstattung beantragen kann.',
@@ -56,13 +78,13 @@ def language(update, context):
     # print(type(update.message.text))
 
 
-
-
 def photo(update, context):
     user = update.message.from_user
     photo_file = update.message.photo[-1].get_file()
-    photo_file.download('user_photo.jpg')
-    logger.info("Photo of %s: %s", user.first_name, 'user_photo.jpg')
+    print(Global.USER_DIR)
+    ticket_path = os.path.join(Global.USER_DIR, "ticket.jpg")
+    photo_file.download(ticket_path)
+    logger.info("Photo of %s: %s", user.first_name, '{}'.format(str(ticket_path)))
     update.message.reply_text('Danke! Ich beantrage deine Erstattung.')
 
 
@@ -77,17 +99,19 @@ def cancel(update, context):
     update.message.reply_text('Bye! I hope we can talk again some day.',
                               reply_markup=ReplyKeyboardRemove())
 
+    delete_user_dir(update.message.chat_id)
+
     return ConversationHandler.END
 
 
 def _start(update, context):
     print("hi")
-    return PHOTO
+    return States.PHOTO
 
 
 def main():
 
-    bot = telegram.Bot(token=TOKEN)
+    # bot = telegram.Bot(token=TOKEN)
 
     updater = Updater(token=TOKEN, use_context=True)
 
@@ -99,9 +123,9 @@ def main():
         entry_points=[CommandHandler('start', start)],
 
         states={
-            LANG: [RegexHandler('^(DE|EN)$', language)],
-            PHOTO: [MessageHandler(Filters.photo, photo)],
-            ALT: [MessageHandler(Filters.text, _start)]
+            States.LANG: [RegexHandler('^(DE|EN)$', request_photo)],
+            States.PHOTO: [MessageHandler(Filters.photo, photo)],
+            States.PHOTO_DEC: [MessageHandler(Filters.text, _start)]
         },
 
         fallbacks=[CommandHandler('cancel', cancel)]
@@ -112,16 +136,6 @@ def main():
     updater.start_polling()
 
     updater.idle()
-
-    #
-    # start_handler = CommandHandler('start', start)
-    # dispatcher.add_handler(start_handler)
-    #
-    # # Should be added last
-    # unknown_handler = MessageHandler(Filters.command, unknown)
-    # dispatcher.add_handler(unknown_handler)
-    # #
-    # updater.start_polling()
 
 
 if __name__ == '__main__':
