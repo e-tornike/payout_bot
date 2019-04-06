@@ -68,6 +68,7 @@ from collections import defaultdict
 import requests
 from PIL import Image
 
+
 def empty_form():
     d = defaultdict(list)
     s = [
@@ -104,6 +105,7 @@ re_list = [
     "(Gesamtpreis)\s*:\s*(?P<price>\d+,\d+)\s*(EUR)"
 ]        
 
+
 def extract_data(list_of_texts, re_list):
     match_dict = {}
     
@@ -127,7 +129,6 @@ def extract_data_from_image(image_path, re_list, subscription_key):
     text = get_text(analysis)
     form_data = extract_data(text, re_list)
     return form_data
-
 
 
 def get_text(analysis):
