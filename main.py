@@ -63,8 +63,8 @@ def db_fill_form(user_dir, ocr_data):
         out_pdf = pypdftk2.concat([output_pdf, generated_pdf])
 
         # TODO
-        # return output_pdf
-        return True
+        return output_pdf
+        # return True
     except:
         return False
 
